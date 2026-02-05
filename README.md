@@ -15,7 +15,7 @@ In your `build.gradle.kts`:
 
 ```kotlin
 plugins {
-    id("io.github.gateopenerz.hytale-server") version "1.0.0"
+    id("io.github.gateopenerz.hytale-server") version "1.0.1"
 }
 
 hytaleServer {
