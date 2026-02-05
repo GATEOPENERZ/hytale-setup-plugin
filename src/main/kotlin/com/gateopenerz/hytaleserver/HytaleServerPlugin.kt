@@ -60,7 +60,13 @@ abstract class HytaleServerPlugin @Inject constructor(
                 val detected = detectVersion(serverDir)
                 if (!state.version.equals(detected, ignoreCase = true)) return@onlyIf true
 
-                if (!desiredVersion.equals("latest", ignoreCase = true)) {
+                if (desiredVersion.equals("latest", ignoreCase = true)) {
+                    val remoteVersion = fetchLatestRemoteVersion(desiredChannel)
+                    if (remoteVersion != null && !state.version.equals(remoteVersion, ignoreCase = true)) {
+                        println("New Hytale version detected: $remoteVersion (current: ${state.version})")
+                        return@onlyIf true
+                    }
+                } else {
                     if (!state.version.equals(desiredVersion, ignoreCase = true)) return@onlyIf true
                 }
 
@@ -589,6 +595,29 @@ abstract class HytaleServerPlugin @Inject constructor(
             dest.outputStream().use { output ->
                 input.copyTo(output)
             }
+        }
+    }
+
+    private fun fetchLatestRemoteVersion(channel: String): String? {
+        val metadataUrl = "https://maven.hytale.com/${channel.lowercase()}/com/hypixel/hytale/Server/maven-metadata.xml"
+        return try {
+            println("Checking for updates at $metadataUrl...")
+            val connection = URI(metadataUrl).toURL().openConnection()
+            val xml = connection.getInputStream().bufferedReader().use { it.readText() }
+            
+            val startTag = "<latest>"
+            val endTag = "</latest>"
+            val startIndex = xml.indexOf(startTag)
+            val endIndex = xml.indexOf(endTag)
+            
+            if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+                xml.substring(startIndex + startTag.length, endIndex).trim()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            println("Warning: Failed to fetch remote version metadata: ${e.message}")
+            null
         }
     }
 }
