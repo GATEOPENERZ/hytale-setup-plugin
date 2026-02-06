@@ -625,13 +625,13 @@ abstract class HytaleServerPlugin @Inject constructor(
             }
             val xml = connection.getInputStream().bufferedReader().use { it.readText() }
 
-            val latest = extractXmlTagValue(xml, "latest")
-            if (!latest.isNullOrBlank()) return latest
+            val lastVersion = extractLastVersionInVersionsBlock(xml)
+            if (!lastVersion.isNullOrBlank()) return lastVersion
 
             val release = extractXmlTagValue(xml, "release")
             if (!release.isNullOrBlank()) return release
 
-            extractLastVersionValue(xml)
+            extractXmlTagValue(xml, "latest")
         } catch (e: Exception) {
             println("Warning: Failed to fetch remote version metadata: ${e.message}")
             null
@@ -643,9 +643,12 @@ abstract class HytaleServerPlugin @Inject constructor(
         return regex.find(xml)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    private fun extractLastVersionValue(xml: String): String? {
-        val regex = Regex("<version>\\s*([^<]+?)\\s*</version>", RegexOption.IGNORE_CASE)
-        return regex.findAll(xml)
+    private fun extractLastVersionInVersionsBlock(xml: String): String? {
+        val versionsBlockRegex = Regex("<versions>\\s*(.*?)\\s*</versions>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        val versionsBlock = versionsBlockRegex.find(xml)?.groupValues?.get(1) ?: return null
+
+        val versionRegex = Regex("<version>\\s*([^<]+?)\\s*</version>", RegexOption.IGNORE_CASE)
+        return versionRegex.findAll(versionsBlock)
             .map { it.groupValues[1].trim() }
             .filter { it.isNotEmpty() }
             .lastOrNull()
