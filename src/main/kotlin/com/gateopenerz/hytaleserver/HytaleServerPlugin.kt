@@ -58,16 +58,19 @@ abstract class HytaleServerPlugin @Inject constructor(
                 if (!state.channel.equals(desiredChannel, ignoreCase = true)) return@onlyIf true
 
                 val detected = detectVersion(serverDir)
-                if (!state.version.equals(detected, ignoreCase = true)) return@onlyIf true
+                val installedDetected = state.detectedVersion ?: state.version
+                if (!installedDetected.equals(detected, ignoreCase = true)) return@onlyIf true
 
                 if (desiredVersion.equals("latest", ignoreCase = true)) {
                     val remoteVersion = fetchLatestRemoteVersion(desiredChannel)
-                    if (remoteVersion != null && !state.version.equals(remoteVersion, ignoreCase = true)) {
-                        println("New Hytale version detected: $remoteVersion (current: ${state.version})")
+                    val installedResolved = state.resolvedVersion ?: state.version
+                    if (remoteVersion != null && !installedResolved.equals(remoteVersion, ignoreCase = true)) {
+                        println("New Hytale version detected: $remoteVersion (current: $installedResolved)")
                         return@onlyIf true
                     }
                 } else {
-                    if (!state.version.equals(desiredVersion, ignoreCase = true)) return@onlyIf true
+                    val installedResolved = state.resolvedVersion ?: state.version
+                    if (!installedResolved.equals(desiredVersion, ignoreCase = true)) return@onlyIf true
                 }
 
                 val assetsZip = File(serverDir, "Assets.zip")
@@ -155,7 +158,7 @@ abstract class HytaleServerPlugin @Inject constructor(
 
                     ensureScriptsPatched(serverDir)
                     writeJvmArgsFile(serverDir, ext.jvmArgs.getOrElse(emptyList()))
-                    writeState(serverDir, ext.channel.get())
+                    writeState(serverDir, ext.channel.get(), ext.version.get())
                 } finally {
                     println("Cleaning up temporary files...")
                     deleteRecursivelyWithRetry(project.layout.buildDirectory.dir("hytale/temp_downloader").get().asFile)
@@ -300,6 +303,8 @@ abstract class HytaleServerPlugin @Inject constructor(
     private data class SetupState(
         val channel: String,
         val version: String,
+        val resolvedVersion: String?,
+        val detectedVersion: String?,
         val serverJarSize: Long?,
         val serverJarLastModified: Long?,
         val serverJarSha256: String?,
@@ -327,11 +332,15 @@ abstract class HytaleServerPlugin @Inject constructor(
             }
 
             val channel = s("channel") ?: return null
-            val version = s("version") ?: return null
+            val legacyVersion = s("version") ?: return null
+            val resolvedVersion = s("resolvedVersion") ?: legacyVersion
+            val detectedVersion = s("detectedVersion") ?: legacyVersion
 
             SetupState(
                 channel = channel,
-                version = version,
+                version = legacyVersion,
+                resolvedVersion = resolvedVersion,
+                detectedVersion = detectedVersion,
                 serverJarSize = l("serverJarSize"),
                 serverJarLastModified = l("serverJarLastModified"),
                 serverJarSha256 = s("serverJarSha256"),
@@ -398,15 +407,23 @@ abstract class HytaleServerPlugin @Inject constructor(
         }
     }
 
-    private fun writeState(serverDir: File, channel: String) {
+    private fun writeState(serverDir: File, channel: String, desiredVersion: String) {
         val assetsZip = File(serverDir, "Assets.zip")
         val serverJar = File(serverDir, "Server/HytaleServer.jar")
 
-        val realVersion = detectVersion(serverDir)
+        val detectedVersion = detectVersion(serverDir)
+        val resolvedVersion =
+            if (desiredVersion.equals("latest", ignoreCase = true)) {
+                fetchLatestRemoteVersion(channel) ?: detectedVersion
+            } else {
+                detectedVersion
+            }
 
         val state = linkedMapOf<String, Any?>(
             "channel" to channel,
-            "version" to realVersion
+            "version" to resolvedVersion,
+            "resolvedVersion" to resolvedVersion,
+            "detectedVersion" to detectedVersion
         )
 
         if (serverJar.exists()) {
@@ -602,22 +619,35 @@ abstract class HytaleServerPlugin @Inject constructor(
         val metadataUrl = "https://maven.hytale.com/${channel.lowercase()}/com/hypixel/hytale/Server/maven-metadata.xml"
         return try {
             println("Checking for updates at $metadataUrl...")
-            val connection = URI(metadataUrl).toURL().openConnection()
-            val xml = connection.getInputStream().bufferedReader().use { it.readText() }
-            
-            val startTag = "<latest>"
-            val endTag = "</latest>"
-            val startIndex = xml.indexOf(startTag)
-            val endIndex = xml.indexOf(endTag)
-            
-            if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
-                xml.substring(startIndex + startTag.length, endIndex).trim()
-            } else {
-                null
+            val connection = URI(metadataUrl).toURL().openConnection().apply {
+                connectTimeout = 5000
+                readTimeout = 5000
             }
+            val xml = connection.getInputStream().bufferedReader().use { it.readText() }
+
+            val latest = extractXmlTagValue(xml, "latest")
+            if (!latest.isNullOrBlank()) return latest
+
+            val release = extractXmlTagValue(xml, "release")
+            if (!release.isNullOrBlank()) return release
+
+            extractLastVersionValue(xml)
         } catch (e: Exception) {
             println("Warning: Failed to fetch remote version metadata: ${e.message}")
             null
         }
+    }
+
+    private fun extractXmlTagValue(xml: String, tag: String): String? {
+        val regex = Regex("<$tag>\\s*([^<]+?)\\s*</$tag>", RegexOption.IGNORE_CASE)
+        return regex.find(xml)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun extractLastVersionValue(xml: String): String? {
+        val regex = Regex("<version>\\s*([^<]+?)\\s*</version>", RegexOption.IGNORE_CASE)
+        return regex.findAll(xml)
+            .map { it.groupValues[1].trim() }
+            .filter { it.isNotEmpty() }
+            .lastOrNull()
     }
 }
