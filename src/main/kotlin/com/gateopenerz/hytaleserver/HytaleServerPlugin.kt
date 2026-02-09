@@ -104,9 +104,9 @@ abstract class HytaleServerPlugin @Inject constructor(
 
                 if (!serverDir.exists()) serverDir.mkdirs()
 
-                val tempDir = project.layout.buildDirectory.dir("hytale/temp_downloader").get().asFile
-                recreateDir(tempDir)
-
+                val tempDirPath = java.nio.file.Files.createTempDirectory("hytale-setup")
+                val tempDir = tempDirPath.toFile()
+                
                 try {
                     val downloaderZip = File(tempDir, "hytale-downloader.zip")
                     val downloaderUrl = "https://downloader.hytale.com/hytale-downloader.zip"
@@ -131,6 +131,11 @@ abstract class HytaleServerPlugin @Inject constructor(
                         throw RuntimeException("Could not find $executableName after extraction in $tempDir. Found files: $allFiles")
                     }
 
+                    if (!os.contains("win")) {
+                        execOperations.exec {
+                            commandLine("chmod", "+x", downloaderExe.absolutePath)
+                        }
+                    }
                     downloaderExe.setExecutable(true)
 
                     val channel = ext.channel.get()
@@ -148,6 +153,7 @@ abstract class HytaleServerPlugin @Inject constructor(
                         }
                         standardOutput = System.out
                         errorOutput = System.err
+                        environment("GODEBUG", "netdns=cgo")
                     }
 
                     println("Extracting server artifacts to ${serverDir.path}...")
@@ -161,7 +167,7 @@ abstract class HytaleServerPlugin @Inject constructor(
                     writeState(serverDir, ext.channel.get(), ext.version.get())
                 } finally {
                     println("Cleaning up temporary files...")
-                    deleteRecursivelyWithRetry(project.layout.buildDirectory.dir("hytale/temp_downloader").get().asFile)
+                    deleteRecursivelyWithRetry(tempDir)
                 }
             }
         }
@@ -196,6 +202,10 @@ abstract class HytaleServerPlugin @Inject constructor(
                     ?: emptyList()
 
                 val javaHome = resolveJavaHomeOrNull()
+
+                if (!os.contains("win")) {
+                   startSh.setExecutable(true)
+                }
 
                 while (true) {
                     val exitCode =
@@ -261,35 +271,40 @@ abstract class HytaleServerPlugin @Inject constructor(
                     return@doLast
                 }
 
-                val commandLine = (listOf(gradlew.absolutePath) + gradleArgs).joinToString(" ")
+                val commandLine = (listOf("bash", gradlew.absolutePath) + gradleArgs).joinToString(" ")
 
                 val candidates = listOf(
-                    listOf("bash", "-lc", "x-terminal-emulator -e $commandLine"),
-                    listOf("bash", "-lc", "gnome-terminal -- bash -lc '$commandLine; exec bash'"),
-                    listOf("bash", "-lc", "konsole -e bash -lc '$commandLine; exec bash'"),
-                    listOf("bash", "-lc", "xterm -e $commandLine")
+                    "ghostty" to listOf("bash", "-lc", "ghostty -e bash -lc '$commandLine'"),
+                    "kitty" to listOf("bash", "-lc", "kitty --hold bash -lc '$commandLine'"),
+                    "konsole" to listOf("bash", "-lc", "konsole -e bash -lc '$commandLine; exec bash'"),
+                    "gnome-terminal" to listOf("bash", "-lc", "gnome-terminal -- bash -lc '$commandLine; exec bash'"),
+                    "x-terminal-emulator" to listOf("bash", "-lc", "x-terminal-emulator -e \"$commandLine\""),
+                    "xterm" to listOf("bash", "-lc", "xterm -e \"$commandLine\"")
                 )
 
                 var launched = false
-                for (c in candidates) {
+                for ((name, cmdArgs) in candidates) {
                     try {
+                        println("Trying to launch terminal: $name")
                         execOperations.exec {
                             workingDir = rootDir
-                            executable = c.first()
-                            args = c.drop(1)
+                            executable = cmdArgs.first()
+                            args = cmdArgs.drop(1)
                             isIgnoreExitValue = true
                         }
+                        println("Successfully launched terminal: $name")
                         launched = true
                         break
                     } catch (_: Exception) {
+                        println("Failed to launch terminal: $name")
                     }
                 }
 
                 if (!launched) {
                     execOperations.exec {
                         workingDir = rootDir
-                        executable = gradlew.absolutePath
-                        args = gradleArgs
+                        executable = "bash"
+                        args = listOf(gradlew.absolutePath) + gradleArgs
                         standardInput = System.`in`
                         standardOutput = System.out
                         errorOutput = System.err
