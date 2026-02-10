@@ -15,7 +15,7 @@ In your `build.gradle.kts`:
 
 ```kotlin
 plugins {
-    id("io.github.gateopenerz.hytale-server") version "1.0.4"
+    id("io.github.gateopenerz.hytale-server") version "1.0.5"
 }
 
 hytaleServer {
@@ -29,6 +29,32 @@ hytaleServer {
 ````
 
 > Note: In Kotlin DSL you can also use `channel = "release"` style assignment with lazy properties. ([Gradle Documentation][1])
+
+## Terminal Configuration (Linux Only)
+
+You can configure which terminal emulator to use when running `runHytaleServerInteractive`. This is especially useful for maintaining your preferred workflow.
+
+```kotlin
+hytaleServer {
+    // ... other config
+
+    // Use a preset terminal
+    // useTerminal(kitty)
+    // useTerminal(ghostty)
+    // useTerminal(gnomeTerminal)
+    // useTerminal(konsole)
+    // useTerminal(xTerminalEmulator)
+    // useTerminal(xterm)
+    
+    // Or string-based:
+    // useTerminal("konsole")
+
+    // Or a completely custom command:
+    // terminal.set(listOf("bash", "-lc", "my-term -e bash -lc '\$commandLine'"))
+}
+```
+
+Supported presets: `ghostty`, `kitty`, `konsole`, `gnomeTerminal`, `xTerminalEmulator`, `xterm`.
 
 ## Tasks
 

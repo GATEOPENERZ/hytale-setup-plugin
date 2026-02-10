@@ -28,6 +28,7 @@ abstract class HytaleServerPlugin @Inject constructor(
         ext.channel.convention("release")
         ext.version.convention("latest")
         ext.jvmArgs.convention(emptyList())
+        ext.terminal.convention(emptyList())
 
         val serverDirProvider = ext.serverDir.map { project.layout.projectDirectory.dir(it).asFile }
         val stateFileProvider = serverDirProvider.map { File(it, ".hytale-setup-state.json") }
@@ -273,17 +274,16 @@ abstract class HytaleServerPlugin @Inject constructor(
 
                 val commandLine = (listOf("bash", gradlew.absolutePath) + gradleArgs).joinToString(" ")
 
-                val candidates = listOf(
-                    "ghostty" to listOf("bash", "-lc", "ghostty -e bash -lc '$commandLine'"),
-                    "kitty" to listOf("bash", "-lc", "kitty --hold bash -lc '$commandLine'"),
-                    "konsole" to listOf("bash", "-lc", "konsole -e bash -lc '$commandLine; exec bash'"),
-                    "gnome-terminal" to listOf("bash", "-lc", "gnome-terminal -- bash -lc '$commandLine; exec bash'"),
-                    "x-terminal-emulator" to listOf("bash", "-lc", "x-terminal-emulator -e \"$commandLine\""),
-                    "xterm" to listOf("bash", "-lc", "xterm -e \"$commandLine\"")
-                )
+                val userTerminal = ext.terminal.getOrElse(emptyList())
+                val candidates = if (userTerminal.isNotEmpty()) {
+                    listOf("custom" to userTerminal)
+                } else {
+                    Terminal.values().map { it.name.lowercase() to it.command }
+                }
 
                 var launched = false
-                for ((name, cmdArgs) in candidates) {
+                for ((name, rawCmdArgs) in candidates) {
+                    val cmdArgs = rawCmdArgs.map { it.replace("\$commandLine", commandLine) }
                     try {
                         println("Trying to launch terminal: $name")
                         execOperations.exec {
