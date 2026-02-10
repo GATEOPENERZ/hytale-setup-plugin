@@ -32,29 +32,27 @@ hytaleServer {
 
 ## Terminal Configuration (Linux Only)
 
-You can configure which terminal emulator to use when running `runHytaleServerInteractive`. This is especially useful for maintaining your preferred workflow.
+You can configure which terminal emulator to use when running `runHytaleServerInteractive`. This is especially useful for maintaining your preferred workflow. If no terminal is configured, the plugin will attempt to find a supported one from a list of common presets.
 
 ```kotlin
 hytaleServer {
     // ... other config
 
-    // Use a preset terminal
-    // useTerminal(kitty)
-    // useTerminal(ghostty)
-    // useTerminal(gnomeTerminal)
-    // useTerminal(konsole)
-    // useTerminal(xTerminalEmulator)
-    // useTerminal(xterm)
+    // Use a preset terminal (Recommended)
+    useTerminal(ghostty)
     
-    // Or string-based:
-    // useTerminal("konsole")
+    // Supported presets are:
+    // ghostty, kitty, konsole, gnomeTerminal, xTerminalEmulator, xterm
 
-    // Or a completely custom command:
+    // You can also set the terminal property directly using a preset:
+    // terminal.set(kitty)
+
+    // Or use a completely custom command:
+    // '$commandLine' is a placeholder that will be replaced with the Hytale server execution command.
     // terminal.set(listOf("bash", "-lc", "my-term -e bash -lc '\$commandLine'"))
 }
 ```
 
-Supported presets: `ghostty`, `kitty`, `konsole`, `gnomeTerminal`, `xTerminalEmulator`, `xterm`.
 
 ## Tasks
 
@@ -93,3 +91,4 @@ Example:
 | `version`   | `latest`  | Desired server version. (`latest` = use local install unless forced update). |
 | `serverDir` | `run`     | Directory for server files.                                                  |
 | `jvmArgs`   | `[]`      | JVM arguments list written to `.hytale-jvm.args`.                            |
+| `terminal`  | `[]`      | Custom terminal command arguments for Linux. (If empty, tries presets).      |
