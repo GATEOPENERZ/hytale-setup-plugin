@@ -3,16 +3,21 @@ plugins {
     id("com.gradle.plugin-publish") version "2.0.0"
 }
 
-
 group = "io.github.gateopenerz"
-version = "1.0.5"
+version = "1.0.6"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation("com.google.code.gson:gson:2.13.1")
+    implementation(libs.gson)
+    testImplementation(libs.junit.api)
+    testRuntimeOnly(libs.junit.engine)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 gradlePlugin {

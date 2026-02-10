@@ -15,7 +15,7 @@ In your `build.gradle.kts`:
 
 ```kotlin
 plugins {
-    id("io.github.gateopenerz.hytale-server") version "1.0.5"
+    id("io.github.gateopenerz.hytale-server") version "1.0.6"
 }
 
 hytaleServer {
@@ -25,8 +25,11 @@ hytaleServer {
     serverDir.set("run")
 
     jvmArgs.set(listOf("-Xmx4G", "-Xms2G"))
+
+    // Java version for the server (default: 25)
+    javaVersion.set(25)
 }
-````
+```
 
 > Note: In Kotlin DSL you can also use `channel = "release"` style assignment with lazy properties. ([Gradle Documentation][1])
 
@@ -85,10 +88,11 @@ Example:
 
 ## Configuration
 
-| Option      | Default   | Description                                                                  |
-| ----------- | --------- | ---------------------------------------------------------------------------- |
-| `channel`   | `release` | Downloader channel / patchline (`release` or `pre-release`).                 |
-| `version`   | `latest`  | Desired server version. (`latest` = use local install unless forced update). |
-| `serverDir` | `run`     | Directory for server files.                                                  |
-| `jvmArgs`   | `[]`      | JVM arguments list written to `.hytale-jvm.args`.                            |
-| `terminal`  | `[]`      | Custom terminal command arguments for Linux. (If empty, tries presets).      |
+| Option        | Default   | Description                                                                  |
+| ------------- | --------- | ---------------------------------------------------------------------------- |
+| `channel`     | `release` | Downloader channel / patchline (`release` or `pre-release`).                 |
+| `version`     | `latest`  | Desired server version. (`latest` = use local install unless forced update). |
+| `serverDir`   | `run`     | Directory for server files.                                                  |
+| `jvmArgs`     | `[]`      | JVM arguments list written to `.hytale-jvm.args`.                            |
+| `terminal`    | `[]`      | Custom terminal command arguments for Linux. (If empty, tries presets).      |
+| `javaVersion` | `25`      | Java version for the toolchain used to run the server.                       |
